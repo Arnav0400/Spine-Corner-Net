@@ -54,3 +54,25 @@ class SpineDataset(Dataset):
             box = box.view(-1,4,2)
 
         return img, box
+
+
+def provider(phase, batch_size=8, num_workers=4):
+    '''Returns dataloader for the model training'''
+    if phase == 'train':
+        image_dataset = SpineDataset(phase)
+        pin = True
+        shuffle = True
+    else:
+        image_dataset = SpineDataset(phase)
+        pin = False
+        shuffle = False
+        
+    dataloader = DataLoader(
+        image_dataset,
+        batch_size=batch_size,
+        num_workers=num_workers,
+        pin_memory=pin,
+        shuffle=shuffle,   
+    )
+
+    return dataloader
