@@ -178,7 +178,7 @@ def _neg_loss(preds, gt):
     neg_inds = gt.lt(1)
 
     neg_weights = torch.pow(1 - gt[neg_inds], 4)
-
+    
     loss = 0
     for pred in preds:
         pos_pred = pred[pos_inds]
@@ -201,15 +201,15 @@ def _sigmoid(x):
     x = torch.clamp(x.sigmoid_(), min=1e-4, max=1-1e-4)
     return x
 
-def _ae_loss(tag0, tag1, tag3, tag4, mask):
+def _ae_loss(tag0, tag1, tag2, tag3, mask):
     num  = mask.sum(dim=1, keepdim=True).float()
     tag0 = tag0.squeeze()
     tag1 = tag1.squeeze()
-    tag2 = tag1.squeeze()
-    tag3 = tag1.squeeze()
+    tag2 = tag2.squeeze()
+    tag3 = tag3.squeeze()
 
     tag_mean = (tag0 + tag1 + tag2 + tag3) / 4
-
+    
     tag0 = torch.pow(tag0 - tag_mean, 2) / (num + 1e-4)
     tag0 = tag0[mask].sum()
     tag1 = torch.pow(tag1 - tag_mean, 2) / (num + 1e-4)
@@ -218,8 +218,8 @@ def _ae_loss(tag0, tag1, tag3, tag4, mask):
     tag2 = tag2[mask].sum()
     tag3 = torch.pow(tag3 - tag_mean, 2) / (num + 1e-4)
     tag3 = tag3[mask].sum()
-    pull = tag0 + tag1 + tag3 + tag4
-
+    pull = tag0 + tag1 + tag2 + tag3
+    
     mask = mask.unsqueeze(1) + mask.unsqueeze(2)
     mask = mask.eq(2)
     num  = num.unsqueeze(2)

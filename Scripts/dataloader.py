@@ -1,8 +1,34 @@
 import albumentations as aug
-from albumentations import (HorizontalFlip, ShiftScaleRotate, Normalize, Resize, Compose, GaussNoise,RandomRotate90)
 from albumentations.pytorch import ToTensor
+import cv2
+import torch
+import torch.nn as nn
+from torch.utils.data import DataLoader, Dataset
+import pandas as pd
+import numpy as np
 
-def get_transforms(phase):
+def makeGaussian(H, W, radius = 3, center=None):
+
+    x = np.arange(0, W, 1, float)
+    y = np.arange(0, H, 1, float)[:,np.newaxis]
+    if center is None:
+        x0 = y0 = size // 2
+    else:
+        x0 = center[0].numpy()
+        y0 = center[1].numpy()
+
+    heat = np.exp((-1 * ((x-x0)**2 + (y-y0)**2)) / (2*((radius/3)**2)))
+    heat*=cv2.circle(np.zeros_like(heat), (x0,y0), radius, (255,255,255), -1)
+    return heat
+
+def create_heat(H, W, points, radius = 20):
+    mask = np.zeros((H, W))
+    for point in points:
+        x, y = point[0], point[1]
+        mask+=makeGaussian(H, W, radius,[x,y])
+    return mask
+    
+def get_transforms(phase, size):
     list_transforms = []
     if phase == "train":
         list_transforms.extend([
@@ -16,15 +42,16 @@ def get_transforms(phase):
         ])
     list_transforms.extend(
         [
-            Normalize(mean=mean, std=std, p=1),
+#             Normalize(mean=mean, std=std, p=1),
+#             aug.Resize(size[0], size[1]),
             ToTensor(),
         ]
     )
-    list_trfms = Compose(list_transforms)
+    list_trfms = aug.Compose(list_transforms,keypoint_params=aug.KeypointParams(format='xy'))
     return list_trfms
 
 class SpineDataset(Dataset):
-    def __init__(self, phase = 'train'): 
+    def __init__(self, phase = 'train', input_size = (1536, 512), output_size = (384, 128)): 
         if phase=='train':
             self.path = '../Data/boostnet_labeldata/data/training/'
             self.label_path = '../Data/boostnet_labeldata/labels/training/'
@@ -34,38 +61,19 @@ class SpineDataset(Dataset):
             
         self.filenames = pd.read_csv(self.label_path+'filenames.csv', header = None).iloc[:, 0].values
         self.labels = pd.read_csv(self.label_path+'landmarks.csv', header = None)
+        self.transform = get_transforms(phase, input_size)
+        self.input_size = input_size
+        self.output_size = output_size
         
     def __len__(self):
         return len(self.filenames)
-    
-    def makeGaussian(H, W, radius = 3, center=None):
-
-        x = np.arange(0, W, 1, float)
-        y = np.arange(0, H, 1, float)[:,np.newaxis]
-        if center is None:
-            x0 = y0 = size // 2
-        else:
-            x0 = center[0]
-            y0 = center[1]
-
-        heat = np.exp((-1 * ((x-x0)**2 + (y-y0)**2)) / (2*(radius/3)**2))
-        heat*=cv2.circle(np.zeros_like(heat), (x0,y0), radius, (255,255,255), -1)
-        return heat
-
-    def create_heat(img, points, radius = 20):
-        H, W, _ = img.shape
-        mask = np.zeros((H, W))
-        for point in points:
-            x, y = point[0], point[1]
-            mask+=makeGaussian(H, W, radius,[y,x])
-        return mask
             
     def __getitem__(self, idx):
         img = cv2.imread(self.path+self.filenames[idx])
-        landmarks = self.labels.loc[idx].values
-        landmarks = [[int(img.shape[1]*landmarks[m]),int(img.shape[0]*landmarks[m+68])] for m in range (0,68)]
-        landmarks_ = [[img.shape[1]*landmarks[m],img.shape[0]*landmarks[m+68]] for m in range (0,68)]
-        H,W,_ = img.shape
+        img = cv2.resize(img, (self.input_size[1], self.input_size[0]))
+        landmark = self.labels.loc[idx].values
+        landmarks = [[int(self.output_size[1]*landmark[m]),int(self.output_size[0]*landmark[m+68])] for m in range (0,68)]
+        landmarks_ = [[self.output_size[1]*landmark[m],self.output_size[0]*landmark[m+68]] for m in range (0,68)]
         N=4     
         box = [landmarks[n:n+N] for n in range(0, len(landmarks), N)]
         box = np.array(box)
@@ -78,12 +86,13 @@ class SpineDataset(Dataset):
             augmented = self.transform(image=img, keypoints = box)
             img = augmented['image']
             box = augmented['keypoints']
-            box = box.view(-1,4,2)
+            box = torch.tensor(box)
+            box = box.view((-1,4,2))
             
-        tl_heatmaps = self.create_heat(img, box[:,0,:])
-        tr_heatmaps = self.create_heat(img, box[:,1,:])
-        bl_heatmaps = self.create_heat(img, box[:,2,:])
-        br_heatmaps = self.create_heat(img, box[:,3,:])
+        tl_heatmaps = create_heat(self.output_size[0], self.output_size[1], box[:,0,:])
+        tr_heatmaps = create_heat(self.output_size[0], self.output_size[1], box[:,1,:])
+        bl_heatmaps = create_heat(self.output_size[0], self.output_size[1], box[:,2,:])
+        br_heatmaps = create_heat(self.output_size[0], self.output_size[1], box[:,3,:])
 
         max_tag_len = 17
         tl_regr    = np.zeros((max_tag_len, 2), dtype=np.float32)
@@ -96,8 +105,8 @@ class SpineDataset(Dataset):
         bl_tag     = np.zeros((max_tag_len), dtype=np.int64)
         tag_mask   = np.zeros((max_tag_len), dtype=np.uint8)
         tag_len    = 0
-
-        for ind, detection, detection_regr in enumerate(zip(box, box_regr)):
+        
+        for ind, (detection, detection_regr) in enumerate(zip(box, box_regr)):
             xtl, ytl = int(detection[0,0]), int(detection[0,1])
             xtr, ytr = int(detection[1,0]), int(detection[1,1])
             xbl, ybl = int(detection[2,0]), int(detection[2,1])
@@ -113,23 +122,23 @@ class SpineDataset(Dataset):
             tl_regr[ind] = [xtl_reg, ytl_reg]
             tl_regr[ind] = [xtl_reg, ytl_reg]
             
-            tl_tag[ind] = ytl * W + xtl
-            br_tag[ind] = ybr * W + xbr
-            tr_tag[ind] = ytr * W + xtr
-            bl_tag[ind] = ybl * W + xbl
+            tl_tag[ind] = ytl * self.output_size[1] + xtl
+            br_tag[ind] = ybr * self.output_size[1] + xbr
+            tr_tag[ind] = ytr * self.output_size[1] + xtr
+            bl_tag[ind] = ybl * self.output_size[1] + xbl
             
             tag_len+=1
 
         tag_mask[:tag_len] = 1
         
         
-        tl_heatmaps = torch.from_numpy(tl_heatmaps)
-        br_heatmaps = torch.from_numpy(br_heatmaps)
-        tr_heatmaps = torch.from_numpy(tr_heatmaps)
-        bl_heatmaps = torch.from_numpy(bl_heatmaps)
+        tl_heatmaps = torch.from_numpy(tl_heatmaps[np.newaxis,...])
+        br_heatmaps = torch.from_numpy(br_heatmaps[np.newaxis,...])
+        tr_heatmaps = torch.from_numpy(tr_heatmaps[np.newaxis,...])
+        bl_heatmaps = torch.from_numpy(bl_heatmaps[np.newaxis,...])
         
         tl_regr    = torch.from_numpy(tl_regr)
-        bl_regr    = torch.from_numpy(br_regr)
+        br_regr    = torch.from_numpy(br_regr)
         tr_regr    = torch.from_numpy(tr_regr)
         bl_regr    = torch.from_numpy(bl_regr)
         

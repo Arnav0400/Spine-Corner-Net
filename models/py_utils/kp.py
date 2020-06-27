@@ -7,7 +7,7 @@ from .utils import make_layer, make_layer_revr
 
 from .kp_utils import _tranpose_and_gather_feat, _decode
 from .kp_utils import _sigmoid, _ae_loss, _regr_loss, _neg_loss
-from .kp_utils import make_tl_layer, make_br_layer, make_kp_layer
+from .kp_utils import make_tl_layer, make_br_layer, make_bl_layer, make_tr_layer, make_kp_layer
 from .kp_utils import make_pool_layer, make_unpool_layer
 from .kp_utils import make_merge_layer, make_inter_layer, make_cnv_layer
 
@@ -199,7 +199,7 @@ class kp(nn.Module):
 
         inter = self.pre(image)
         outs  = []
-
+        
         layers = zip(
             self.kps, self.cnvs,
             self.tl_cnvs, self.br_cnvs, self.tr_cnvs, self.bl_cnvs,
@@ -216,15 +216,15 @@ class kp(nn.Module):
 
             kp  = kp_(inter)
             cnv = cnv_(kp)
-
+            
             tl_cnv = tl_cnv_(cnv)
             br_cnv = br_cnv_(cnv)
             tr_cnv = tr_cnv_(cnv)
             bl_cnv = bl_cnv_(cnv)
-
+            
             tl_heat, br_heat, tr_heat, bl_heat = tl_heat_(tl_cnv), br_heat_(br_cnv), tr_heat_(tr_cnv), bl_heat_(bl_cnv)
             tl_tag,  br_tag, tr_tag, bl_tag = tl_tag_(tl_cnv),  br_tag_(br_cnv), tr_tag_(tr_cnv), bl_tag_(bl_cnv)
-            tl_regr, br_regr, tr_regr, bl_regr = tl_regr_(tl_cnv), br_regr_(br_cnv), tr_regr_(tr_cnv), bl_regr(bl_cnv)
+            tl_regr, br_regr, tr_regr, bl_regr = tl_regr_(tl_cnv), br_regr_(br_cnv), tr_regr_(tr_cnv), bl_regr_(bl_cnv)
 
             tl_tag  = _tranpose_and_gather_feat(tl_tag, tl_inds)
             br_tag  = _tranpose_and_gather_feat(br_tag, br_inds)
@@ -274,7 +274,7 @@ class kp(nn.Module):
 
                 tl_heat, br_heat, tr_heat, bl_heat = tl_heat_(tl_cnv), br_heat_(br_cnv), tr_heat_(tr_cnv), bl_heat_(bl_cnv)
                 tl_tag,  br_tag, tr_tag, bl_tag = tl_tag_(tl_cnv),  br_tag_(br_cnv), tr_tag_(tr_cnv), bl_tag_(bl_cnv)
-                tl_regr, br_regr, tr_regr, bl_regr = tl_regr_(tl_cnv), br_regr_(br_cnv), tr_regr_(tr_cnv), bl_regr(bl_cnv)
+                tl_regr, br_regr, tr_regr, bl_regr = tl_regr_(tl_cnv), br_regr_(br_cnv), tr_regr_(tr_cnv), bl_regr_(bl_cnv)
 
                 outs += [tl_heat, br_heat, tr_heat, bl_heat, tl_tag, br_tag, tr_tag, bl_tag, tl_regr, br_regr, tr_regr, bl_regr]
 
@@ -302,7 +302,7 @@ class AELoss(nn.Module):
         self.regr_loss   = _regr_loss
 
     def forward(self, outs, targets):
-        stride = 6
+        stride = 12
 
         tl_heats = outs[0::stride]
         br_heats = outs[1::stride]
@@ -334,7 +334,7 @@ class AELoss(nn.Module):
         br_heats = [_sigmoid(b) for b in br_heats]
         tr_heats = [_sigmoid(t) for t in tr_heats]
         bl_heats = [_sigmoid(b) for b in bl_heats]
-
+        
         focal_loss += self.focal_loss(tl_heats, gt_tl_heat)
         focal_loss += self.focal_loss(br_heats, gt_br_heat)
         focal_loss += self.focal_loss(tr_heats, gt_tr_heat)
@@ -358,6 +358,6 @@ class AELoss(nn.Module):
             regr_loss += self.regr_loss(tr_regr, gt_tr_regr, gt_mask)
             regr_loss += self.regr_loss(bl_regr, gt_bl_regr, gt_mask)
         regr_loss = self.regr_weight * regr_loss
-
+        
         loss = (focal_loss + pull_loss + push_loss + regr_loss) / len(tl_heats)
         return loss.unsqueeze(0)

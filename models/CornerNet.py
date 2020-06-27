@@ -1,12 +1,11 @@
 import torch
 import torch.nn as nn
 
-from .py_utils import kp, AELoss, _neg_loss, convolution, residual
-from .py_utils import TopPool, BottomPool, LeftPool, RightPool
+from py_utils import kp, AELoss, _neg_loss, convolution, residual
 
 class head(nn.Module):
     def __init__(self, dim):
-        super(pool, self).__init__()
+        super(head, self).__init__()
 
         self.conv1 = nn.Conv2d(dim, dim, (1, 1), bias=False)
         self.bn1   = nn.BatchNorm2d(dim)
@@ -27,15 +26,15 @@ class tl_head(head):
     def __init__(self, dim):
         super(tl_head, self).__init__(dim)
 
-class br_head(pool):
+class br_head(head):
     def __init__(self, dim):
         super(br_head, self).__init__(dim)
 
-class tr_head(pool):
+class tr_head(head):
     def __init__(self, dim):
         super(tr_head, self).__init__(dim)
 
-class bl_head(pool):
+class bl_head(head):
     def __init__(self, dim):
         super(bl_head, self).__init__(dim)
 
@@ -60,7 +59,7 @@ def make_hg_layer(kernel, dim0, dim1, mod, layer=convolution, **kwargs):
     return nn.Sequential(*layers)
 
 class model(kp):
-    def __init__(self, db):
+    def __init__(self):
         n       = 5
         dims    = [256, 256, 384, 384, 384, 512]
         modules = [2, 2, 2, 2, 2, 4]
