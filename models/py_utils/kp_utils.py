@@ -79,7 +79,7 @@ def _decode(
     tl_heat, br_heat, tr_heat, bl_heat, 
     tl_tag, br_tag, tr_tag, bl_tag, 
     tl_regr, br_regr, tr_regr, bl_regr, 
-    K=100, kernel=1, ae_threshold=1, num_dets=1000
+    K=17, kernel=1, ae_threshold=1, num_dets=1000
 ):
     batch, cat, height, width = tl_heat.size()
 
@@ -171,7 +171,7 @@ def _decode(
     bl_scores = bl_scores.contiguous().view(batch, -1, 1)
     bl_scores = _gather_feat(bl_scores, inds).float()
 
-    return  torch.cat([scores, tl_scores, br_scores, tr_scores, bl_scores], dim=2), torch.cat([tl_xs, tl_ys, br_xs, br_ys, tr_xs, tr_ys, bl_xs, bl_ys], dim=2)
+    return torch.cat([scores, tl_scores, br_scores, tr_scores, bl_scores], dim=2), [tl_xs, tl_ys, br_xs, br_ys, tr_xs, tr_ys, bl_xs, bl_ys]
 
 def _neg_loss(preds, gt):
     pos_inds = gt.eq(1)
