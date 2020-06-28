@@ -5,6 +5,9 @@ import torch.nn as nn
 from dataloader import provider
 import logging
 import time
+import sys
+sys.path.insert(0,'../models')
+from models.py_utils.kp_utils import _decode
 
 class Network(nn.Module):
     def __init__(self, model, loss):
@@ -57,6 +60,7 @@ class Trainer(object):
                 num_workers=self.num_workers if phase=='train' else 0,
             )
             for phase in self.phases
+        }
 
     def load_model(self, name, path='models/'):
         state = torch.load(path+name, map_location=lambda storage, loc: storage)
@@ -76,6 +80,18 @@ class Trainer(object):
         print("setting learning rate to: {}".format(lr))
         for param_group in self.optimizer.param_groups:
             param_group["lr"] = lr
+    
+    def cal_smape(detections, detections_gt):
+        [tl_xs, tl_ys, br_xs, br_ys, tr_xs, tr_ys, bl_xs, bl_ys] = detections
+        [tl_xs_gt, tl_ys_gt, br_xs_gt, br_ys_gt, tr_xs_gt, tr_ys_gt, bl_xs_gt, bl_ys_gt] = detections_gt
+        
+
+    def prepare_for_smape(self, preds, ys, xs):
+        _, detections = _decode(*preds[-12:])
+        [tl_heatmaps, br_heatmaps, tr_heatmaps, bl_heatmaps, tag_mask, tl_regr, br_regr, tr_regr, bl_regr] = ys
+        [_, tl_tag, br_tag, tr_tag, bl_tag] = xs
+        _, detections_gt = _decode(tl_heatmaps, br_heatmaps, tr_heatmaps, bl_heatmaps, tl_tag, br_tag, tr_tag, bl_tag, tl_regr, br_regr, tr_regr, bl_regr)
+        return self.cal_smape(detections, detections_gt)
 
     def iterate(self, epoch, phase):
         loss_meter = Average_Meter()
@@ -96,9 +112,10 @@ class Trainer(object):
                 self.optimizer.step()
                 self.optimizer.zero_grad()
             loss_meter.update(loss.mean().item(),len(loss))
+            xs = xs.detach().cpu()
             ys = ys.detach().cpu()
             preds = preds.detach().cpu()
-            smape = cal_smape(preds,ys)
+            smape = self.prepare_for_smape(preds,ys, xs)
             smape_meter.update(smape,ys.shape[0])
             tk0.set_postfix(loss=loss_meter.avg(), smape = smape_meter.avg())
         return loss_meter.avg(), smape_meter.avg()
