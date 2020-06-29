@@ -149,10 +149,16 @@ class SpineDataset(Dataset):
         bl_tag     = torch.from_numpy(bl_tag)
         
         tag_mask   = torch.from_numpy(tag_mask)
+        if(phase == 'test'):
+            return {
+            "xs": [img],
+            "ys": [tl_heatmaps, br_heatmaps, tr_heatmaps, bl_heatmaps, tag_mask, tl_regr, br_regr, tr_regr, bl_regr]
+            }
         return {
             "xs": [img, tl_tag, br_tag, tr_tag, bl_tag],
             "ys": [tl_heatmaps, br_heatmaps, tr_heatmaps, bl_heatmaps, tag_mask, tl_regr, br_regr, tr_regr, bl_regr]
         }
+            
 
 
 def provider(phase, batch_size=8, num_workers=4):
