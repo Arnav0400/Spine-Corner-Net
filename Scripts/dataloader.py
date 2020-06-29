@@ -65,6 +65,7 @@ class SpineDataset(Dataset):
         self.input_size = input_size
         self.output_size = output_size
         self.radius = 10
+        self.phase = phase
         
     def __len__(self):
         return len(self.filenames)
@@ -149,7 +150,7 @@ class SpineDataset(Dataset):
         bl_tag     = torch.from_numpy(bl_tag)
         
         tag_mask   = torch.from_numpy(tag_mask)
-        if(phase == 'test'):
+        if(self.phase == 'test'):
             return {
             "xs": [img],
             "ys": [tl_heatmaps, br_heatmaps, tr_heatmaps, bl_heatmaps, tag_mask, tl_regr, br_regr, tr_regr, bl_regr]

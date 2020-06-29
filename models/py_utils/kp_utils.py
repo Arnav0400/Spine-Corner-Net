@@ -79,7 +79,7 @@ def _decode(
     tl_heat, br_heat, tr_heat, bl_heat, 
     tl_tag, br_tag, tr_tag, bl_tag, 
     tl_regr, br_regr, tr_regr, bl_regr, 
-    K=17, kernel=1, ae_threshold=1, num_dets=1000
+    K=17, kernel=1, ae_threshold=1, num_dets=100
 ):
     batch, cat, height, width = tl_heat.size()
 
@@ -118,17 +118,17 @@ def _decode(
         tr_ys = tr_ys + tr_regr[..., 1]
         bl_xs = bl_xs + bl_regr[..., 0]
         bl_ys = bl_ys + bl_regr[..., 1]
-
+        
     tl_tag = _tranpose_and_gather_feat(tl_tag, tl_inds)
     tl_tag = tl_tag.view(batch, K, 1, 1, 1)
     br_tag = _tranpose_and_gather_feat(br_tag, br_inds)
     br_tag = br_tag.view(batch, 1, K, 1, 1)
 
-    tr_tag = _tranpose_and_gather_feat(tl_tag, tl_inds)
+    tr_tag = _tranpose_and_gather_feat(tr_tag, tr_inds)
     tr_tag = tr_tag.view(batch, 1, 1, K, 1)
-    bl_tag = _tranpose_and_gather_feat(br_tag, br_inds)
+    bl_tag = _tranpose_and_gather_feat(bl_tag, bl_inds)
     bl_tag = bl_tag.view(batch, 1, 1, 1, K)
-
+    
     dists = torch.abs(tl_tag - br_tag) + torch.abs(tl_tag - tr_tag) + torch.abs(tl_tag - bl_tag) + torch.abs(br_tag - tr_tag) + torch.abs(br_tag - bl_tag) + torch.abs(tr_tag - bl_tag)
 
     tl_scores = tl_scores.view(batch, K, 1, 1, 1).expand(batch, K, K, K, K)
@@ -171,7 +171,7 @@ def _decode(
     bl_scores = bl_scores.contiguous().view(batch, -1, 1)
     bl_scores = _gather_feat(bl_scores, inds).float()
 
-    return torch.cat([scores, tl_scores, br_scores, tr_scores, bl_scores], dim=2), [tl_xs, tl_ys, br_xs, br_ys, tr_xs, tr_ys, bl_xs, bl_ys]
+    return [scores, tl_scores, br_scores, tr_scores, bl_scores], [tl_xs, tl_ys, br_xs, br_ys, tr_xs, tr_ys, bl_xs, bl_ys]
 
 def _neg_loss(preds, gt):
     pos_inds = gt.eq(1)

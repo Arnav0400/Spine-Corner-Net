@@ -19,8 +19,10 @@ class Network(nn.Module):
 
     def forward(self, xs, ys, **kwargs):
         preds = self.model(*xs, **kwargs)
-        loss  = self.loss(preds, ys, **kwargs)
-        return loss, preds
+        if len(xs)>1:
+            loss  = self.loss(preds, ys, **kwargs)
+            return loss, preds
+        return preds
 
 class Average_Meter():
     def __init__(self):
@@ -43,7 +45,7 @@ class Trainer(object):
         self.criterion = loss
         self.network = Network(self.model, loss)
         self.optimizer = optim(self.model.parameters(), init_lr)
-        self.phases = ["train", "val"]
+        self.phases = ["train", "val", "test"]
         self.device = torch.device("cuda:0")
         self.num_epochs = 0
         self.best_loss = 100.
@@ -121,7 +123,31 @@ class Trainer(object):
 #             smape_meter.update(smape,ys.shape[0])
             tk0.set_postfix(loss=loss_meter.avg())
         return loss_meter.avg()
-
+    
+    def test(self, phase='test'):
+        mse_meter =  Average_Meter()
+        batch_size = self.batch_size
+        dataloader = self.dataloaders[phase]
+        total_batches = len(dataloader)
+        tk0 = tqdm(dataloader, total=total_batches)
+        self.optimizer.zero_grad()
+        for itr, batch in enumerate(tk0):
+            xs, ys = batch['xs'], batch['ys']
+            xs = [x.cuda() for x in xs]
+            ys = [y.cuda() for y in ys]
+            preds_scores, preds_points = self.network(xs, ys)
+            if phase == "train":
+                loss.backward()
+                self.optimizer.step()
+                self.optimizer.zero_grad()
+            xs = [x.detach() for x in xs]
+            ys = [y.detach() for y in ys]
+            preds_scores = [pred.detach() for pred in preds_scores]
+            preds_points = [pred.detach() for pred in preds_points]
+#             smape = self.prepare_for_smape(preds,ys, xs)
+#             smape_meter.update(smape,ys.shape[0])
+        return preds_scores, preds_points
+             
     def fit(self, epochs):
         self.num_epochs+=epochs
         for epoch in range(self.num_epochs-epochs, self.num_epochs):
