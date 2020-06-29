@@ -5,9 +5,10 @@ import torch.nn as nn
 from dataloader import provider
 import logging
 import time
+from tqdm.notebook import tqdm
 import sys
-sys.path.insert(0,'../models')
-from models.py_utils.kp_utils import _decode
+sys.path.insert(0,'../models/')
+from py_utils.kp_utils import _decode
 
 class Network(nn.Module):
     def __init__(self, model, loss):
@@ -22,41 +23,41 @@ class Network(nn.Module):
         return loss, preds
 
 class Average_Meter():
-    def __init__():
+    def __init__(self):
         self.val = 0
         self.n = 0
-    def reset():
+    def reset(self):
         self.val = 0
         self.n = 0
-    def update(val, n=1):
+    def update(self, val, n=1):
         self.val += val*n
         self.n+=n
-    def avg():
+    def avg(self):
         return self.val/self.n
 
 class Trainer(object):
     '''This class takes care of training and validation of our model'''
-    def __init__(self, model, optim, loss, lr, bs, name):
+    def __init__(self, model, optim, loss, init_lr, bs, name):
         super(Trainer, self).__init__()
         self.model = model
         self.criterion = loss
-        self.network = Network(self.model, self.loss)
-        self.optimizer = optim
+        self.network = Network(self.model, loss)
+        self.optimizer = optim(self.model.parameters(), init_lr)
         self.phases = ["train", "val"]
         self.device = torch.device("cuda:0")
         self.num_epochs = 0
         self.best_loss = 100.
         self.name = name
+        self.batch_size = bs
         torch.set_default_tensor_type("torch.cuda.FloatTensor")
         self.network = self.network.to(self.device)
-        cudnn.benchmark = True
-
+        torch.backends.cudnn.benchmark = True
+        
         self.dataloaders = {
             phase: provider(
                 phase=phase,
-                crop_type=crop_type,
-                batch_size=self.batch_size[phase],
-                num_workers=self.num_workers if phase=='train' else 0,
+                batch_size=bs,
+                num_workers=0,
             )
             for phase in self.phases
         }
@@ -96,15 +97,17 @@ class Trainer(object):
         loss_meter = Average_Meter()
 #         smape_meter =  Average_Meter()
         print(f"Starting epoch: {epoch} | phase: {phase}")
-        batch_size = self.batch_size[phase]
+        batch_size = self.batch_size
         dataloader = self.dataloaders[phase]
         total_batches = len(dataloader)
         tk0 = tqdm(dataloader, total=total_batches)
         self.optimizer.zero_grad()
         for itr, batch in enumerate(tk0):
-            xs, ys = batch
-            xs = xs.to(self.device)
-            ys = yx.to(self.device)
+            xs, ys = batch['xs'], batch['ys']
+            xs = [x.cuda() for x in xs]
+            ys = [y.cuda() for y in ys]
+#             xs = xs.to(self.device)
+#             ys = yx.to(self.device)
             loss, preds = self.network(xs, ys)
             if phase == "train":
                 loss.backward()
@@ -112,8 +115,8 @@ class Trainer(object):
                 self.optimizer.zero_grad()
             loss_meter.update(loss.mean().item(),len(loss))
 #             xs = xs.detach().cpu()
-            ys = ys.detach().cpu()
-            preds = preds.detach().cpu()
+#             ys = ys.detach().cpu()
+#             preds = preds.detach().cpu()
 #             smape = self.prepare_for_smape(preds,ys, xs)
 #             smape_meter.update(smape,ys.shape[0])
             tk0.set_postfix(loss=loss_meter.avg())
@@ -122,15 +125,15 @@ class Trainer(object):
     def fit(self, epochs):
         self.num_epochs+=epochs
         for epoch in range(self.num_epochs-epochs, self.num_epochs):
-            self.net.train()
-            train_loss, train_smape = self.iterate(epoch, "train")
+            self.network.train()
+            train_loss = self.iterate(epoch, "train")
             state = {
                 "epoch": epoch,
                 "best_loss": self.best_loss,
                 "state_dict": self.model.state_dict(),
                 "optimizer": self.optimizer.state_dict(),
             }
-            self.net.eval()
+            self.network.eval()
             with torch.no_grad():
                 val_loss = self.iterate(epoch, "val")
             if val_loss <= self.best_loss:
@@ -138,7 +141,7 @@ class Trainer(object):
                 state["best_loss"] = self.best_loss = val_loss
                 os.makedirs('models/', exist_ok=True)
                 torch.save(state, 'models/'+self.name+'.pth')
-            content =  time.ctime() + ' ' + f'Epoch {epoch}, lr: {optimizer.param_groups[0]["lr"]:.7f}, train loss: {train_loss:.5f}, val loss: {val_loss:.5f}'
+            content =  time.ctime() + ' ' + f'Epoch {epoch}, lr: {self.optimizer.param_groups[0]["lr"]:.7f}, train loss: {train_loss:.5f}, val loss: {val_loss:.5f}'
             print(content)
             os.makedirs('logs/', exist_ok=True)
             with open(f'logs/log_{self.name}.txt', 'a') as appender:

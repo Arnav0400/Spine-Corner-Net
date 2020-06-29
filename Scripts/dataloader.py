@@ -14,8 +14,8 @@ def makeGaussian(H, W, radius = 3, center=None):
     if center is None:
         x0 = y0 = size // 2
     else:
-        x0 = center[0].numpy()
-        y0 = center[1].numpy()
+        x0 = center[0].cpu().numpy()
+        y0 = center[1].cpu().numpy()
 
     heat = np.exp((-1 * ((x-x0)**2 + (y-y0)**2)) / (2*((radius/3)**2)))
     heat*=cv2.circle(np.zeros_like(heat), (x0,y0), radius, (255,255,255), -1)
@@ -51,7 +51,7 @@ def get_transforms(phase, size):
     return list_trfms
 
 class SpineDataset(Dataset):
-    def __init__(self, phase = 'train', input_size = (1536, 512), output_size = (384, 128)): 
+    def __init__(self, phase = 'train', input_size = (768, 256), output_size = (192, 64), radius = 10): 
         if phase=='train':
             self.path = '../Data/boostnet_labeldata/data/training/'
             self.label_path = '../Data/boostnet_labeldata/labels/training/'
@@ -64,6 +64,7 @@ class SpineDataset(Dataset):
         self.transform = get_transforms(phase, input_size)
         self.input_size = input_size
         self.output_size = output_size
+        self.radius = 10
         
     def __len__(self):
         return len(self.filenames)
@@ -89,10 +90,10 @@ class SpineDataset(Dataset):
             box = torch.tensor(box)
             box = box.view((-1,4,2))
             
-        tl_heatmaps = create_heat(self.output_size[0], self.output_size[1], box[:,0,:])
-        tr_heatmaps = create_heat(self.output_size[0], self.output_size[1], box[:,1,:])
-        bl_heatmaps = create_heat(self.output_size[0], self.output_size[1], box[:,2,:])
-        br_heatmaps = create_heat(self.output_size[0], self.output_size[1], box[:,3,:])
+        tl_heatmaps = create_heat(self.output_size[0], self.output_size[1], box[:,0,:], self.radius)
+        tr_heatmaps = create_heat(self.output_size[0], self.output_size[1], box[:,1,:], self.radius)
+        bl_heatmaps = create_heat(self.output_size[0], self.output_size[1], box[:,2,:], self.radius)
+        br_heatmaps = create_heat(self.output_size[0], self.output_size[1], box[:,3,:], self.radius)
 
         max_tag_len = 17
         tl_regr    = np.zeros((max_tag_len, 2), dtype=np.float32)
@@ -148,11 +149,10 @@ class SpineDataset(Dataset):
         bl_tag     = torch.from_numpy(bl_tag)
         
         tag_mask   = torch.from_numpy(tag_mask)
-        if(phase == 'train')
-          return {
-              "xs": [img, tl_tag, br_tag, tr_tag, bl_tag],
-              "ys": [tl_heatmaps, br_heatmaps, tr_heatmaps, bl_heatmaps, tag_mask, tl_regr, br_regr, tr_regr, bl_regr]
-          }
+        return {
+            "xs": [img, tl_tag, br_tag, tr_tag, bl_tag],
+            "ys": [tl_heatmaps, br_heatmaps, tr_heatmaps, bl_heatmaps, tag_mask, tl_regr, br_regr, tr_regr, bl_regr]
+        }
 
 
 def provider(phase, batch_size=8, num_workers=4):
@@ -171,7 +171,8 @@ def provider(phase, batch_size=8, num_workers=4):
         batch_size=batch_size,
         num_workers=num_workers,
         pin_memory=pin,
-        shuffle=shuffle,   
+        shuffle=shuffle,
+        drop_last = True
     )
 
     return dataloader
