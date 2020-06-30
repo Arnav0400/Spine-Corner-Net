@@ -283,7 +283,7 @@ class kp(nn.Module):
                 inter = self.relu(inter)
                 inter = self.inters[ind](inter)
 
-        return self._decode(*outs[-12:], **kwargs)
+        return outs[-12:]
 
     def forward(self, *xs, **kwargs):
         if len(xs) > 1:
