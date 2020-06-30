@@ -75,6 +75,51 @@ def _topk(scores, K=17):
     topk_xs   = (topk_inds % width).int().float()
     return topk_scores, topk_inds, topk_clses, topk_ys, topk_xs
 
+def _decode_val(
+    tl_heat, br_heat, tr_heat, bl_heat, 
+    tl_tag, br_tag, tr_tag, bl_tag, 
+    tl_regr, br_regr, tr_regr, bl_regr, 
+    K=17, kernel=1, ae_threshold=1, num_dets=17
+):
+    batch, cat, height, width = tl_heat.size()
+
+    tl_heat1 = torch.sigmoid(tl_heat)
+    br_heat1 = torch.sigmoid(br_heat)
+    tr_heat1 = torch.sigmoid(tr_heat)
+    bl_heat1 = torch.sigmoid(bl_heat)
+
+    # perform nms on heatmaps
+    tl_heat1 = _nms(tl_heat1, kernel=kernel)
+    br_heat1 = _nms(br_heat1, kernel=kernel)
+    tr_heat1 = _nms(tr_heat1, kernel=kernel)
+    bl_heat1 = _nms(bl_heat1, kernel=kernel)
+
+    tl_scores, tl_inds, tl_clses, tl_ys, tl_xs = _topk(tl_heat1, K=K)
+    br_scores, br_inds, br_clses, br_ys, br_xs = _topk(br_heat1, K=K)
+    tr_scores, tr_inds, tr_clses, tr_ys, tr_xs = _topk(tr_heat1, K=K)
+    bl_scores, bl_inds, bl_clses, bl_ys, bl_xs = _topk(bl_heat1, K=K)
+
+    if tl_regr is not None and br_regr is not None and tr_regr is not None and bl_regr is not None:
+        tl_regr = _tranpose_and_gather_feat(tl_regr, tl_inds)
+        tl_regr = tl_regr.view(batch, K, 2)
+        br_regr = _tranpose_and_gather_feat(br_regr, br_inds)
+        br_regr = br_regr.view(batch, K, 2)
+        bl_regr = _tranpose_and_gather_feat(bl_regr, bl_inds)
+        bl_regr = bl_regr.view(batch, K, 2)
+        tr_regr = _tranpose_and_gather_feat(tr_regr, tr_inds)
+        tr_regr = tr_regr.view(batch, K, 2)
+        
+    tl_tag = _tranpose_and_gather_feat(tl_tag, tl_inds)
+    tl_tag = tl_tag.view(batch, K)
+    br_tag = _tranpose_and_gather_feat(br_tag, br_inds)
+    br_tag = br_tag.view(batch, K)
+    tr_tag = _tranpose_and_gather_feat(tr_tag, tr_inds)
+    tr_tag = tr_tag.view(batch, K)
+    bl_tag = _tranpose_and_gather_feat(bl_tag, bl_inds)
+    bl_tag = bl_tag.view(batch, K)
+    
+    return [tl_heat,br_heat,tr_heat,bl_heat,tl_tag,br_tag,tr_tag,bl_tag,tl_regr, br_regr, tr_regr, bl_regr]
+
 def _decode(
     tl_heat, br_heat, tr_heat, bl_heat, 
     tl_tag, br_tag, tr_tag, bl_tag, 
