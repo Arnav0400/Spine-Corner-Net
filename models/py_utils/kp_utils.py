@@ -124,7 +124,7 @@ def _decode(
     tl_heat, br_heat, tr_heat, bl_heat, 
     tl_tag, br_tag, tr_tag, bl_tag, 
     tl_regr, br_regr, tr_regr, bl_regr, 
-    K=17, kernel=1, ae_threshold=1, num_dets=100
+    K=17, kernel=1, ae_threshold=1, num_dets=17
 ):
     batch, cat, height, width = tl_heat.size()
 
