@@ -8,20 +8,18 @@ import time
 from tqdm.notebook import tqdm
 import sys
 sys.path.insert(0,'../models/')
-from py_utils.kp_utils import _decode
+from py_utils.kp_utils import _decode, _val_decode
 
 class Network(nn.Module):
     def __init__(self, model, loss):
         super(Network, self).__init__()
-
         self.model = model
-        self.loss  = loss
 
-    def forward(self, xs, ys, **kwargs):
+    def forward(self, xs, **kwargs):
         preds = self.model(*xs, **kwargs)
-        if len(xs)>1:
-            loss  = self.loss(preds, ys, **kwargs)
-            return loss, preds
+        # if len(xs)>1:
+        #     loss  = self.loss(preds, ys, **kwargs)
+        #     return loss, preds
         return preds
 
 class Average_Meter():
@@ -43,7 +41,8 @@ class Trainer(object):
         super(Trainer, self).__init__()
         self.model = model
         self.criterion = loss
-        self.network = Network(self.model, loss)
+        self.network = Network(self.model)
+        self.criterion = loss
         self.optimizer = optim(self.model.parameters(), init_lr)
         self.phases = ["train", "val", "test"]
         self.device = torch.device("cuda:0")
@@ -110,7 +109,10 @@ class Trainer(object):
             ys = [y.cuda() for y in ys]
 #             xs = xs.to(self.device)
 #             ys = yx.to(self.device)
-            loss, preds = self.network(xs, ys)
+            preds = self.network(xs)
+            if(phase == 'val'):
+                preds = _val_decode(*preds)
+            loss = self.criterion(preds, ys)
             if phase == "train":
                 loss.backward()
                 self.optimizer.step()
@@ -135,7 +137,8 @@ class Trainer(object):
             xs, ys = batch['xs'], batch['ys']
             xs = [x.cuda() for x in xs]
             ys = [y.cuda() for y in ys]
-            preds_scores, preds_points = self.network(xs, ys)
+            preds = self.network(xs)
+            preds_scores, preds_points = _decode(*preds)
             if phase == "train":
                 loss.backward()
                 self.optimizer.step()
