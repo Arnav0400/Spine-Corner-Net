@@ -18,3 +18,5 @@ Sun Jun 28 18:45:23 2020 Epoch 16, lr: 0.0000100, train loss: 0.09479, val loss:
 Sun Jun 28 18:50:15 2020 Epoch 17, lr: 0.0000100, train loss: 0.09257, val loss: 0.10445
 Sun Jun 28 18:55:08 2020 Epoch 18, lr: 0.0000100, train loss: 0.08918, val loss: 0.10439
 Sun Jun 28 19:00:01 2020 Epoch 19, lr: 0.0000100, train loss: 0.08705, val loss: 0.10397
+Wed Jul  1 15:41:38 2020 Epoch 0, lr: 0.0010000, train loss: 1.98603, val loss: 0.67601
+Mon Jul  6 11:13:17 2020 Epoch 0, lr: 0.0010000, train loss: 2.72441, val loss: 1.12846

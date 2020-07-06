@@ -221,9 +221,7 @@ def _decode(
 def _neg_loss(preds, gt):
     pos_inds = gt.eq(1)
     neg_inds = gt.lt(1)
-
     neg_weights = torch.pow(1 - gt[neg_inds], 4)
-    
     loss = 0
     for pred in preds:
         pos_pred = pred[pos_inds]

@@ -71,6 +71,8 @@ class SpineDataset(Dataset):
         return len(self.filenames)
             
     def __getitem__(self, idx):
+        if(idx == 394):
+            idx+=1
         img = cv2.imread(self.path+self.filenames[idx])
         img = cv2.resize(img, (self.input_size[1], self.input_size[0]))
         landmark = self.labels.loc[idx].values
@@ -85,11 +87,19 @@ class SpineDataset(Dataset):
 
         if self.transform:
             box = box.reshape(-1, 2)
+            box_regr = box_regr.reshape(-1, 2)
             augmented = self.transform(image=img, keypoints = box)
             img = augmented['image']
             box = augmented['keypoints']
-            box = torch.tensor(box)
+            try:
+                box = torch.tensor(box)
+                box_regr = torch.tensor(box_regr)
+            except:
+                print(box)
+                print(idx)
+                box = torch.Tensor(box)
             box = box.view((-1,4,2))
+            box_regr = box_regr.view((-1,4,2))
             
         tl_heatmaps = create_heat(self.output_size[0], self.output_size[1], box[:,0,:], self.radius)
         tr_heatmaps = create_heat(self.output_size[0], self.output_size[1], box[:,1,:], self.radius)
@@ -120,9 +130,9 @@ class SpineDataset(Dataset):
             xbr_reg, ybr_reg = detection_regr[3,0], detection_regr[3,1]
 
             tl_regr[ind] = [xtl_reg, ytl_reg]
-            tl_regr[ind] = [xtl_reg, ytl_reg]
-            tl_regr[ind] = [xtl_reg, ytl_reg]
-            tl_regr[ind] = [xtl_reg, ytl_reg]
+            tr_regr[ind] = [xtr_reg, ytr_reg]
+            bl_regr[ind] = [xbl_reg, ybl_reg]
+            br_regr[ind] = [xbr_reg, ybr_reg]
             
             tl_tag[ind] = ytl * self.output_size[1] + xtl
             br_tag[ind] = ybr * self.output_size[1] + xbr
@@ -167,11 +177,11 @@ def provider(phase, batch_size=8, num_workers=4):
     if phase == 'train':
         image_dataset = SpineDataset(phase)
         pin = True
-        shuffle = True
+        shuffle = False
     else:
         image_dataset = SpineDataset(phase)
         pin = False
-        shuffle = False
+        shuffle = True
         
     dataloader = DataLoader(
         image_dataset,
