@@ -60,9 +60,9 @@ def make_hg_layer(kernel, dim0, dim1, mod, layer=convolution, **kwargs):
 
 class model(kp):
     def __init__(self):
-        n       = 5
-        dims    = [256, 256, 384, 384, 384, 512]
-        modules = [2, 2, 2, 2, 2, 4]
+        n       = 4
+        dims    = [32, 64, 128, 256, 512]
+        modules = [2, 2, 2, 2, 2]
         out_dim = 1
 
         super(model, self).__init__(
@@ -76,4 +76,4 @@ class model(kp):
             kp_layer=residual, cnv_dim=256
         )
 
-loss = AELoss(pull_weight=1e-1, push_weight=1e-1, focal_loss=_neg_loss)
+loss = AELoss(pull_weight=0.1, push_weight=0.1, focal_loss=_neg_loss)

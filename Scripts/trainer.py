@@ -138,21 +138,18 @@ class Trainer(object):
         self.optimizer.zero_grad()
         for itr, batch in enumerate(tk0):
             xs, ys = batch['xs'], batch['ys']
-            xs = [x for x in xs]
-            ys = [y for y in ys]
-            preds = self.network(xs)
-            preds_scores, preds_points = _decode(*preds)
-            if phase == "train":
-                loss.backward()
-                self.optimizer.step()
-                self.optimizer.zero_grad()
-            xs = [x.detach() for x in xs]
-            ys = [y.detach() for y in ys]
-            preds_scores = [pred.detach() for pred in preds_scores]
-            preds_points = [pred.detach() for pred in preds_points]
+            xs = [x.cuda() for x in xs]
+            ys = [y.cuda() for y in ys]
+            preds = self.network([xs[0]])
+            preds_scores, preds_points, preds_heats = _decode(*preds[-12:])
+            xs = [x.detach().cpu() for x in xs]
+            ys = [y.detach().cpu() for y in ys]
+            preds_scores = [pred.detach().cpu() for pred in preds_scores]
+            preds_points = [pred.detach().cpu() for pred in preds_points]
+            preds_heats = [pred.detach().cpu() for pred in preds_heats]
 #             smape = self.prepare_for_smape(preds,ys, xs)
 #             smape_meter.update(smape,ys.shape[0])
-        return preds_scores, preds_points
+        return preds_scores, preds_points, preds_heats
              
     def fit(self, epochs):
         self.num_epochs+=epochs
@@ -168,6 +165,7 @@ class Trainer(object):
             self.network.eval()
             with torch.no_grad():
                 val_loss = self.iterate(epoch, "val")
+#             val_loss = train_loss
             if val_loss <= self.best_loss:
                 print("* New optimal found according, saving state *")
                 state["best_loss"] = self.best_loss = val_loss

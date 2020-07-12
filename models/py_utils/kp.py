@@ -62,12 +62,19 @@ class kp_module(nn.Module):
         self.merge = make_merge_layer(curr_dim)
 
     def forward(self, x):
+#         print('x',x.shape)
         up1  = self.up1(x)
+#         print('up1',up1.shape)
         max1 = self.max1(x)
+#         print('max1',max1.shape)
         low1 = self.low1(max1)
+#         print('low1',low1.shape)
         low2 = self.low2(low1)
+#         print('low2',low2.shape)
         low3 = self.low3(low2)
+#         print('low3',low3.shape)
         up2  = self.up2(low3)
+#         print('up2',up2.shape)
         return self.merge(up1, up2)
 
 class kp(nn.Module):
@@ -91,8 +98,8 @@ class kp(nn.Module):
         curr_dim = dims[0]
 
         self.pre = nn.Sequential(
-            convolution(7, 3, 128, stride=2),
-            residual(3, 128, 256, stride=2)
+            convolution(7, 3, 16, stride=1),
+            residual(3, 16, 32, stride=2)
         ) if pre is None else pre
 
         self.kps  = nn.ModuleList([
@@ -196,8 +203,9 @@ class kp(nn.Module):
         br_inds = xs[2]
         tr_inds = xs[3]
         bl_inds = xs[4]
-
+#         print(image.shape)
         inter = self.pre(image)
+#         print(inter.shape)
         outs  = []
         
         layers = zip(
@@ -215,8 +223,9 @@ class kp(nn.Module):
             tl_regr_, br_regr_, tr_regr_, bl_regr_ = layer[14:18]
 
             kp  = kp_(inter)
+#             print('kp',kp.shape)
             cnv = cnv_(kp)
-            
+#             print('cnv',cnv.shape)
             tl_cnv = tl_cnv_(cnv)
             br_cnv = br_cnv_(cnv)
             tr_cnv = tr_cnv_(cnv)
@@ -225,7 +234,7 @@ class kp(nn.Module):
             tl_heat, br_heat, tr_heat, bl_heat = tl_heat_(tl_cnv), br_heat_(br_cnv), tr_heat_(tr_cnv), bl_heat_(bl_cnv)
             tl_tag,  br_tag, tr_tag, bl_tag = tl_tag_(tl_cnv),  br_tag_(br_cnv), tr_tag_(tr_cnv), bl_tag_(bl_cnv)
             tl_regr, br_regr, tr_regr, bl_regr = tl_regr_(tl_cnv), br_regr_(br_cnv), tr_regr_(tr_cnv), bl_regr_(bl_cnv)
-
+#             print('heat',tl_heat.shape)
             tl_tag  = _tranpose_and_gather_feat(tl_tag, tl_inds)
             br_tag  = _tranpose_and_gather_feat(br_tag, br_inds)
             tr_tag  = _tranpose_and_gather_feat(tr_tag, tr_inds)

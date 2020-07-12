@@ -124,7 +124,7 @@ def _decode(
     tl_heat, br_heat, tr_heat, bl_heat, 
     tl_tag, br_tag, tr_tag, bl_tag, 
     tl_regr, br_regr, tr_regr, bl_regr, 
-    K=17, kernel=1, ae_threshold=1, num_dets=17
+    K=17, kernel=1, ae_threshold=0.1, num_dets=17
 ):
     batch, cat, height, width = tl_heat.size()
 
@@ -134,10 +134,10 @@ def _decode(
     bl_heat = torch.sigmoid(bl_heat)
 
     # perform nms on heatmaps
-    tl_heat = _nms(tl_heat, kernel=kernel)
-    br_heat = _nms(br_heat, kernel=kernel)
-    tr_heat = _nms(tr_heat, kernel=kernel)
-    bl_heat = _nms(bl_heat, kernel=kernel)
+#     tl_heat = _nms(tl_heat, kernel=kernel)
+#     br_heat = _nms(br_heat, kernel=kernel)
+#     tr_heat = _nms(tr_heat, kernel=kernel)
+#     bl_heat = _nms(bl_heat, kernel=kernel)
 
     tl_scores, tl_inds, tl_clses, tl_ys, tl_xs = _topk(tl_heat, K=K)
     br_scores, br_inds, br_clses, br_ys, br_xs = _topk(br_heat, K=K)
@@ -216,7 +216,7 @@ def _decode(
     bl_scores = bl_scores.contiguous().view(batch, -1, 1)
     bl_scores = _gather_feat(bl_scores, inds).float()
 
-    return [scores, tl_scores, br_scores, tr_scores, bl_scores], [tl_xs, tl_ys, br_xs, br_ys, tr_xs, tr_ys, bl_xs, bl_ys]
+    return [scores, tl_scores, br_scores, tr_scores, bl_scores], [tl_xs, tl_ys, br_xs, br_ys, tr_xs, tr_ys, bl_xs, bl_ys], [tl_heat, br_heat, tr_heat, bl_heat]
 
 def _neg_loss(preds, gt):
     pos_inds = gt.eq(1)

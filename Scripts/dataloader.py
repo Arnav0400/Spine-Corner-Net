@@ -18,7 +18,7 @@ def makeGaussian(H, W, radius = 3, center=None):
         y0 = center[1].cpu().numpy()
 
     heat = np.exp((-1 * ((x-x0)**2 + (y-y0)**2)) / (2*((radius/3)**2)))
-    heat*=cv2.circle(np.zeros_like(heat), (x0,y0), radius, (255,255,255), -1)
+    heat*=cv2.circle(np.zeros_like(heat), (x0,y0), int(radius), (255,255,255), -1)
     return heat
 
 def create_heat(H, W, points, radius = 20):
@@ -26,13 +26,13 @@ def create_heat(H, W, points, radius = 20):
     for point in points:
         x, y = point[0], point[1]
         mask+=makeGaussian(H, W, radius,[x,y])
-    return mask
+    return mask/255.
     
 def get_transforms(phase, size):
     list_transforms = []
     if phase == "train":
         list_transforms.extend([
-            aug.HorizontalFlip(),
+#             aug.HorizontalFlip(),
             aug.OneOf([
                 aug.RandomContrast(),
                 aug.RandomGamma(),
@@ -51,7 +51,7 @@ def get_transforms(phase, size):
     return list_trfms
 
 class SpineDataset(Dataset):
-    def __init__(self, phase = 'train', input_size = (768, 256), output_size = (192, 64), radius = 10): 
+    def __init__(self, phase = 'train', input_size = (768, 256), output_size = (384, 128), radius = 15.): 
         if phase=='train':
             self.path = '../Data/boostnet_labeldata/data/training/'
             self.label_path = '../Data/boostnet_labeldata/labels/training/'
@@ -64,7 +64,7 @@ class SpineDataset(Dataset):
         self.transform = get_transforms(phase, input_size)
         self.input_size = input_size
         self.output_size = output_size
-        self.radius = 10
+        self.radius = radius
         self.phase = phase
         
     def __len__(self):
@@ -91,13 +91,8 @@ class SpineDataset(Dataset):
             augmented = self.transform(image=img, keypoints = box)
             img = augmented['image']
             box = augmented['keypoints']
-            try:
-                box = torch.tensor(box)
-                box_regr = torch.tensor(box_regr)
-            except:
-                print(box)
-                print(idx)
-                box = torch.Tensor(box)
+            box = torch.tensor(box)
+            box_regr = torch.tensor(box_regr)
             box = box.view((-1,4,2))
             box_regr = box_regr.view((-1,4,2))
             
@@ -105,7 +100,6 @@ class SpineDataset(Dataset):
         tr_heatmaps = create_heat(self.output_size[0], self.output_size[1], box[:,1,:], self.radius)
         bl_heatmaps = create_heat(self.output_size[0], self.output_size[1], box[:,2,:], self.radius)
         br_heatmaps = create_heat(self.output_size[0], self.output_size[1], box[:,3,:], self.radius)
-
         max_tag_len = 17
         tl_regr    = np.zeros((max_tag_len, 2), dtype=np.float32)
         br_regr    = np.zeros((max_tag_len, 2), dtype=np.float32)
